@@ -37,10 +37,12 @@ def decide_parameter_change(client, imbalance_data_list, constraint, current_hea
         "You must choose ONE character and ONE parameter to modify. Output your decision in JSON format."
     )
     
-    matchup_info = "\n".join([
-        f"  - {data['matchup']}: Win Rate for {data['character_a']} = {data['win_rate_a']:.2f}%"
-        for data in imbalance_data_list
-    ])
+    # Show both win rates explicitly for clarity
+    matchup_info = ""
+    for data in imbalance_data_list:
+        win_rate_a = data['win_rate_a']
+        win_rate_b = 100 - win_rate_a
+        matchup_info += f"  - {data['matchup']}: {data['character_a']} Win Rate = {win_rate_a:.2f}%, {data['character_b']} Win Rate = {win_rate_b:.2f}%\n"
     
     history_section = ""
     if history_buffer:
@@ -54,9 +56,23 @@ def decide_parameter_change(client, imbalance_data_list, constraint, current_hea
     """
     
     user_prompt = f"""
+    COMBAT SIMULATOR MECHANICS:
+    The combat system works as follows:
+    - Time advances in discrete ticks of 0.1 seconds each
+    - When a character's attack cooldown expires (after X seconds = X * 10 ticks), they perform an attack
+    - Attack: damage = attack_power (with randomness: ±20 damage variance, 15% miss chance, 15% crit chance for 2x damage)
+    - Attack damage is SUBTRACTED from the opponent's current health
+    - When a character's healing cooldown expires (if healing > 0), they perform a heal
+    - Heal: health += healing (with ±40% variance in healing amount)
+    - Healing cannot exceed max_health (the character's starting health value)
+    - The fight continues until one character's health drops to 0 or below
+    - If both characters die (health <= 0), it's a tie (no winner)
+    - Cooldowns are measured in seconds (e.g., 1.2 seconds = 12 ticks of 0.1s each)
+    - Lower cooldown = more frequent actions = higher damage/healing output per second
+    - Example: attack_cooldown=0.8s means attacking every 8 ticks, attack_cooldown=1.2s means attacking every 12 ticks
+
     IMBALANCE REPORT (Current Win Rates):
 {matchup_info}
-
     CURRENT ARCHETYPE PARAMETERS:
     Healer: attack_power={current_healer_params['attack_power']}, health={current_healer_params['health']}, 
             healing={current_healer_params['healing']}, attack_cooldown={current_healer_params['attack_cooldown']}, 
@@ -77,8 +93,6 @@ def decide_parameter_change(client, imbalance_data_list, constraint, current_hea
     Output JSON format:
     {{"character": "Healer|Attacker", "parameter": "parameter_name", "direction": "increase|decrease", "rationale": "explanation"}}
     """
-
-    print(user_prompt)  # Debugging: print the generated user_prompt to inspect input
     
     try:
         response = client.chat.completions.create(
@@ -105,7 +119,7 @@ def apply_parameter_change(client, decision, constraint, current_healer_params, 
     system_prompt = (
         "You are an expert game designer. Your task is to apply a specific parameter change "
         "while STRICTLY adhering to all parameter constraints and design constraints. "
-        "You must output the complete parameter set for all three archetypes with the requested change applied."
+        "You must output the complete parameter set for both archetypes with the requested change applied."
     )
     
     # Get current value of the parameter to change
@@ -117,6 +131,21 @@ def apply_parameter_change(client, decision, constraint, current_healer_params, 
     current_value = target_params[decision.parameter]
     
     user_prompt = f"""
+    COMBAT SIMULATOR MECHANICS:
+    The combat system works as follows:
+    - Time advances in discrete ticks of 0.1 seconds each
+    - When a character's attack cooldown expires (after X seconds = X * 10 ticks), they perform an attack
+    - Attack: damage = attack_power (with randomness: ±20 damage variance, 15% miss chance, 15% crit chance for 2x damage)
+    - Attack damage is SUBTRACTED from the opponent's current health
+    - When a character's healing cooldown expires (if healing > 0), they perform a heal
+    - Heal: health += healing (with ±40% variance in healing amount)
+    - Healing cannot exceed max_health (the character's starting health value)
+    - The fight continues until one character's health drops to 0 or below
+    - If both characters die (health <= 0), it's a tie (no winner)
+    - Cooldowns are measured in seconds (e.g., 1.2 seconds = 12 ticks of 0.1s each)
+    - Lower cooldown = more frequent actions = higher damage/healing output per second
+    - Example: attack_cooldown=0.8s means attacking every 8 ticks, attack_cooldown=1.2s means attacking every 12 ticks
+
     PARAMETER CHANGE REQUEST:
     Character: {decision.character}
     Parameter: {decision.parameter}

@@ -2,10 +2,14 @@ from GameSimulator import run_simulation
 from OptimizationAgent import run_optimization_agent
 from openai import OpenAI
 import os
+from dotenv import load_dotenv
+
 
 if __name__ == "__main__":
-    optimization_client = OpenAI() # Initialize OpenAI client
-
+    load_dotenv(".env")
+    api_key = os.getenv("OPENAI_API_KEY")
+    optimization_client = OpenAI(api_key=api_key)
+    
     # Initialize parameters for two character archetypes with deliberate imbalance:
     # 1. Healer (Overpowered): High health, good attack, extremely strong healing, reasonable cooldowns
     INITIAL_HEALER_PARAMS = {
